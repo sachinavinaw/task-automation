@@ -1,0 +1,2 @@
+echo Running batch script
+

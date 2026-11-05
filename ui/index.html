@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+  "
+    />
+    <title>Panchayat Automation</title>
+
+    <link
+      rel="stylesheet"
+      href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
+
+    <style>
+      :root {
+        --bg-main: #0f172a;
+        --card-bg: rgba(30, 41, 59, 0.75);
+        --accent-primary: #3b82f6;
+        --accent-primary-hover: #2563eb;
+        --accent-glow: rgba(59, 130, 246, 0.25);
+        --text-heading: #f8fafc;
+        --text-body: #94a3b8;
+        --text-label: #cbd5e1;
+        --input-bg: rgba(15, 23, 42, 0.6);
+        --input-border: #334155;
+        --success-color: #10b981;
+        --error-color: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        overflow: hidden; /* Prevents unwanted scrollbars */
+      }
+
+      body {
+        margin: 0;
+        background: radial-gradient(
+          circle at top right,
+          #1e293b 0%,
+          #0f172a 60%,
+          #020617 100%
+        );
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 44px 16px 16px 16px; /* Top padding accommodates fixed titlebar */
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        color: var(--text-heading);
+        user-select: none;
+      }
+
+      /* Custom Titlebar Drag Area for Electron Window */
+      .app-titlebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 36px;
+        -webkit-app-region: drag;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        font-size: 12px;
+        color: #64748b;
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        z-index: 1000;
+      }
+
+      .app-card {
+        width: 100%;
+        max-width: 480px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        background: var(--card-bg);
+        backdrop-filter: blur(16px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        margin: 0 auto;
+        overflow: hidden;
+      }
+
+      .app-header {
+        text-align: center;
+        margin-bottom: 18px;
+      }
+
+      .logo-wrapper {
+        position: relative;
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 12px;
+      }
+
+      .logo {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        border-radius: 16px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 10px 20px var(--accent-glow);
+      }
+
+      .logo svg {
+        width: 28px;
+        height: 28px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--text-heading);
+      }
+
+      .subtitle {
+        color: var(--text-body);
+        font-size: 0.85rem;
+        margin-top: 4px;
+      }
+
+      .form-group {
+        position: relative;
+        margin-bottom: 16px;
+      }
+
+      .form-label {
+        font-weight: 500;
+        font-size: 0.85rem;
+        color: var(--text-label);
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .form-control-wrapper {
+        position: relative;
+      }
+
+      .form-select {
+        height: 46px;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        background-color: var(--input-bg);
+        border: 1px solid var(--input-border);
+        color: var(--text-heading);
+        padding-left: 12px;
+        padding-right: 40px;
+        transition: all 0.2s ease;
+      }
+
+      .form-select:focus {
+        background-color: var(--input-bg);
+        border-color: var(--accent-primary);
+        color: var(--text-heading);
+        box-shadow: 0 0 0 4px var(--accent-glow);
+      }
+
+      .form-select option {
+        background-color: #1e293b;
+        color: var(--text-heading);
+      }
+
+      /* Inline Validation Indicators */
+      .validation-icon {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        display: none;
+        width: 18px;
+        height: 18px;
+      }
+
+      .is-valid + .validation-icon-valid {
+        display: block;
+        color: var(--success-color);
+      }
+
+      .is-invalid + .validation-icon-invalid {
+        display: block;
+        color: var(--error-color);
+      }
+
+      .form-select.is-valid {
+        border-color: var(--success-color) !important;
+      }
+
+      .form-select.is-invalid {
+        border-color: var(--error-color) !important;
+      }
+
+      .error-feedback {
+        font-size: 0.78rem;
+        color: var(--error-color);
+        margin-top: 4px;
+        display: none;
+      }
+
+      .form-select.is-invalid ~ .error-feedback {
+        display: block;
+      }
+
+      .actions-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+      }
+
+      /* Green Submit Button */
+      .btn-run {
+        flex: 2;
+        height: 46px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+      }
+
+      .btn-run:hover:not(:disabled) {
+        background: linear-gradient(135deg, #059669, #047857);
+        transform: translateY(-1px);
+      }
+
+      /* Grey Reset Button */
+      .btn-reset {
+        flex: 1;
+        height: 46px;
+        border: 1px solid #475569;
+        border-radius: 10px;
+        background: #334155;
+        color: #f8fafc;
+        font-weight: 500;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+      }
+
+      .btn-reset:hover {
+        background: #475569;
+        color: var(--text-heading);
+      }
+
+      /* Collapsible Status Div */
+      #status {
+        margin-top: 0px;
+        font-size: 0.85rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        overflow: hidden;
+      }
+
+      #status:not(:empty) {
+        margin-top: 14px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .footer-text {
+        text-align: center;
+        color: var(--text-body);
+        opacity: 0.7;
+        font-size: 0.75rem;
+        margin-top: 16px;
+      }
+
+      /* Screen Media Query for Extremely Small Heights */
+      @media (max-height: 550px) {
+        .logo-wrapper {
+          display: none;
+        }
+        .subtitle {
+          display: none;
+        }
+        .app-header {
+          margin-bottom: 10px;
+        }
+        .card-body {
+          padding: 1.25rem !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="card app-card">
+      <div class="card-body p-4">
+        <div class="app-header">
+          <div class="logo-wrapper">
+            <div class="logo">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                ></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+          </div>
+          <div class="title">Panchayat Automation</div>
+          <div class="subtitle">
+            Select Panchayat and Financial Year to begin automated task runner
+          </div>
+        </div>
+
+        <form id="automationForm" novalidate>
+          <div class="form-group">
+            <label for="panchayat" class="form-label">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"
+                />
+              </svg>
+              Panchayat
+            </label>
+            <div class="form-control-wrapper">
+              <select id="panchayat" class="form-select" required>
+                <option value="">Select Panchayat</option>
+              </select>
+              <svg
+                class="validation-icon validation-icon-valid"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <svg
+                class="validation-icon validation-icon-invalid"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div class="error-feedback">Please select a valid Panchayat.</div>
+          </div>
+
+          <div class="form-group">
+            <label for="financialYear" class="form-label">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              Financial Year
+            </label>
+            <div class="form-control-wrapper">
+              <select id="financialYear" class="form-select" required>
+                <option value="">Select Financial Year</option>
+              </select>
+              <svg
+                class="validation-icon validation-icon-valid"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <svg
+                class="validation-icon validation-icon-invalid"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div class="error-feedback">Please select a Financial Year.</div>
+          </div>
+
+          <div class="actions-group">
+            <button type="button" id="resetBtn" class="btn btn-reset">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M23 4v6h-6" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              Reset
+            </button>
+            <button type="submit" id="submitBtn" class="btn btn-run">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              Start Automation
+            </button>
+          </div>
+
+          <div id="status"></div>
+
+          <div class="footer-text">Copyright &copy; RABS Professionals</div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("automationForm");
+        const panchayatSelect = document.getElementById("panchayat");
+        const fySelect = document.getElementById("financialYear");
+        const resetBtn = document.getElementById("resetBtn");
+        const statusDiv = document.getElementById("status");
+
+        const validateField = (field) => {
+          if (field.value !== "") {
+            field.classList.remove("is-invalid");
+            field.classList.add("is-valid");
+            checkGlobalValidity();
+            return true;
+          } else {
+            field.classList.remove("is-valid");
+            field.classList.add("is-invalid");
+            return false;
+          }
+        };
+
+        const checkGlobalValidity = () => {
+          if (panchayatSelect.value !== "" && fySelect.value !== "") {
+            if (
+              statusDiv.textContent === "Please fill out all required fields."
+            ) {
+              statusDiv.textContent = "";
+            }
+          }
+        };
+
+        [panchayatSelect, fySelect].forEach((select) => {
+          select.addEventListener("change", () => validateField(select));
+        });
+
+        resetBtn.addEventListener("click", () => {
+          form.reset();
+          [panchayatSelect, fySelect].forEach((select) => {
+            select.classList.remove("is-valid", "is-invalid");
+          });
+          statusDiv.textContent = "";
+        });
+
+        form.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const isPanchayatValid = validateField(panchayatSelect);
+          const isFyValid = validateField(fySelect);
+
+          if (isPanchayatValid && isFyValid) {
+            statusDiv.className = "text-success font-weight-bold";
+            statusDiv.textContent = "Processing automation...";
+          } else {
+            statusDiv.className = "text-danger";
+            statusDiv.textContent = "Please fill out all required fields.";
+          }
+        });
+      });
+    </script>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

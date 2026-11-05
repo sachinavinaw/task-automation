@@ -5,6 +5,7 @@ import fs from "fs";
 import XLSX from "xlsx-js-style";
 
 import { ACTIVE_FTO_REPORT } from "../config/config.js";
+import { logger } from "../utils/logger.js";
 
 const targetBlockName = ACTIVE_FTO_REPORT.BLOCK_NAME;
 const targetFinancialYear = ACTIVE_FTO_REPORT.FINACIAL_YEAR;
@@ -58,9 +59,6 @@ test("Download FTO Report for block", async ({ page }) => {
     timeout: 120000,
   });
 
-  // Debug current page
-  console.log("Current URL:", page.url());
-
   // Wait for any link containing blockName text
   const blockNameLink = page.locator("a").filter({
     hasText: targetBlockName,
@@ -75,9 +73,7 @@ test("Download FTO Report for block", async ({ page }) => {
 
   // Wait for next page
   await page.waitForLoadState("domcontentloaded");
-
-  // Debug
-  console.log("After click URL:", page.url());
+  s;
 
   const ftoStatusReportLink = page.locator("a").filter({
     hasText: "FTO Status Report",
@@ -104,7 +100,7 @@ test("Download FTO Report for block", async ({ page }) => {
   await expect(secondSignatorySignedFtoLink).toBeVisible();
 
   const count = await secondSignatorySignedFtoLink.textContent();
-  console.log("2nd Signatory Signed FTO Count:", count);
+  logger.info(`2nd Signatory Signed FTO Count:${count}`);
 
   await secondSignatorySignedFtoLink.click();
 
@@ -112,7 +108,7 @@ test("Download FTO Report for block", async ({ page }) => {
     timeout: 120000,
   });
 
-  const downloadsDir = `${process.cwd()}\\data\\block\\${targetBlockName}\\${financialYear}\\excel`;
+  const downloadsDir = `${process.cwd()}\\data\\block\\${targetBlockName}\\${targetFinancialYear}\\excel`;
   const fileName = `${downloadsDir}/FTO_Report.xlsx`;
 
   fs.mkdirSync(downloadsDir, { recursive: true });
@@ -246,8 +242,7 @@ test("Download FTO Report for block", async ({ page }) => {
   // Save file
   XLSX.writeFile(workbook, fileName);
 
-  console.log(`Saved: ${fileName}`);
-  console.log("File download: ", fileName);
+  logger.info(`Saved block data oin file: [${fileName}]`);
 
   await page.pause();
 });

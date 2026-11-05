@@ -1,86 +1,207 @@
-import { app, BrowserWindow, ipcMain, Menu } from "electron";
-
+import { app, BrowserWindow, ipcMain, Menu, dialog } from "electron";
 import path from "path";
-import fs from "fs";
+import { promises as fs } from "fs";
 import { spawn } from "child_process";
-import { cwd } from "process";
-const appBasePath = app.getAppPath();
+import dotenv from "dotenv";
+import { logger } from "../utils/logger.js";
+
+const APPPATH = app.getAppPath();
+const APPBASEPATH = path.resolve(APPPATH, "..");
+const envPath = path.resolve(APPPATH, "..", ".env.dev");
+// const env = dotenv.parse(await fs.readFile(envPath, "utf8"));
+
+logger.info("Application started");
+
+const PATHS = {
+  PRELOAD: path.join(APPPATH, "preload.js"),
+  UICONFIG: path.join(APPPATH, "config", "ui-data.json"),
+  RUNNERBAT: path.resolve(APPPATH, "..", "runner.bat"),
+};
+
+async function readEnv() {
+  try {
+    const content = await fs.readFile(envPath, "utf8");
+
+    return dotenv.parse(content);
+  } catch (error) {
+    logger.error("Failed to read .env.dev:", error);
+
+    return {};
+  }
+}
+
+async function writeEnv(envData) {
+  await fs.writeFile(
+    envPath,
+    Object.entries(envData)
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n"),
+    "utf8",
+  );
+}
+
+let mainWindow = null;
+let activeChildProcess = null; // Track the running automation process
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 900,
     height: 600,
     show: false,
     webPreferences: {
-      preload: path.join(appBasePath, "preload.js"),
+      preload: PATHS.PRELOAD,
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
-  win.webContents.openDevTools();
-
   Menu.setApplicationMenu(null);
-  win.loadFile("index.html");
 
-  win.once("ready-to-show", () => win.show());
+  if (process.env.IS_DEV || !app.isPackaged) {
+    mainWindow.webContents.openDevTools();
+  }
+
+  mainWindow.loadFile("index.html");
+
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+    logger.info("Launching window");
+  });
+
+  // Intercept window close event to check for active background processes
+  mainWindow.on("close", async (e) => {
+    if (activeChildProcess) {
+      e.preventDefault(); // Prevent window from closing immediately
+
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        buttons: ["Cancel", "Stop & Close"],
+        defaultIndex: 0,
+        title: "Automation Running",
+        message: "An automation task is currently running.",
+        detail:
+          "Closing the application will terminate the ongoing process. Are you sure you want to stop and exit?",
+      });
+
+      if (response === 1) {
+        // User clicked "Stop & Close"
+        try {
+          activeChildProcess.kill();
+        } catch (err) {
+          logger.error(err, "Failed to kill active process");
+        }
+        activeChildProcess = null;
+        app.quit();
+      }
+    }
+  });
+
+  return mainWindow;
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
 
-// Load UI config
-ipcMain.handle("get-ui-config", async () => {
-  const configPath = path.join(appBasePath, "config", "ui-data.json");
-
-  return JSON.parse(fs.readFileSync(configPath, "utf8"));
-});
-
-// Run batch file
-ipcMain.handle("run-process", async (event, data) => {
-  const batFile = path.join(appBasePath, "runner.bat");
-
-  console.log("batFile:", batFile);
-
-  return new Promise((resolve, reject) => {
-    const child = spawn("cmd.exe", ["/c", batFile], {
-      shell: true,
-      cwd: appBasePath,
-    });
-
-    child.stdout.on("data", (data) => {
-      console.log(data.toString());
-    });
-
-    child.stderr.on("data", (data) => {
-      console.error(data.toString());
-    });
-
-    child.on("error", (err) => {
-      console.error("SPAWN ERROR", err);
-      reject(err.message);
-    });
-
-    child.on("close", (code) => {
-      let message = `Finished with exit code ${code}`;
-
-      if (code === 0) {
-        message = `Task completed`;
-      }
-
-      resolve(message);
-    });
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
   });
 });
 
-// Save user selection
-ipcMain.handle("save-selection-csv", async (event, data) => {
-  const filePath = path.join(appBasePath, "config", "selection.csv");
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
 
-  console.log(cwd());
-  const csvContent = `Panchayat,FinancialYear
-"${data.panchayat}","${data.financialYear}"`;
+ipcMain.handle("get-current-selection", async () => {
+  const env = await readEnv();
 
-  fs.writeFileSync(filePath, csvContent, "utf8");
+  if (env.IS_DEV === "true") {
+    console.log("ENV:", env);
+  }
 
-  return filePath;
+  return {
+    blockName: env.BLOCK_NAME || "",
+    financialYear: env.FINANCIAL_YEAR || "",
+  };
+});
+
+// Load UI configuration
+ipcMain.handle("get-ui-config", async () => {
+  try {
+    const content = await fs.readFile(PATHS.UICONFIG, "utf8");
+    return JSON.parse(content);
+  } catch (error) {
+    logger.error(error, "Failed to load UI config");
+    throw new Error("Unable to load UI configuration.");
+  }
+});
+
+// Save selected values to env file
+ipcMain.handle("save-selection-config", async (_event, data) => {
+  try {
+    const env = await readEnv();
+
+    env.BLOCK_NAME = data.blockName;
+    env.FINANCIAL_YEAR = data.financialYear;
+
+    await writeEnv(env);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    logger.error(error, "Failed to save UI selection");
+    throw new Error("Unable to save selection.");
+  }
+});
+
+// Execute batch file
+ipcMain.handle("run-process", async () => {
+  return new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+
+    activeChildProcess = spawn("cmd.exe", ["/c", PATHS.RUNNERBAT], {
+      cwd: APPBASEPATH,
+      shell: true,
+    });
+
+    activeChildProcess.stdout.on("data", (data) => {
+      const text = data.toString();
+      stdout += text;
+      logger.debug(text);
+    });
+
+    activeChildProcess.stderr.on("data", (data) => {
+      const text = data.toString();
+      stderr += text;
+      logger.error(text);
+    });
+
+    activeChildProcess.on("error", (error) => {
+      logger.error(error, "Process start failed");
+      activeChildProcess = null;
+      reject({
+        success: false,
+        message: error.message,
+      });
+    });
+
+    activeChildProcess.on("close", (code) => {
+      activeChildProcess = null; // Clear reference when complete
+      resolve({
+        success: code === 0,
+        exitCode: code,
+        message:
+          code === 0
+            ? "Task completed successfully."
+            : `Task failed with exit code ${code}.`,
+        stdout,
+        stderr,
+      });
+    });
+  });
 });

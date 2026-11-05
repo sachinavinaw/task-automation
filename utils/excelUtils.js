@@ -1,5 +1,6 @@
 import XLSX from "xlsx-js-style";
 import fs from "fs";
+import { logger } from "./logger.js";
 
 export function writeXlsx(filePath, data, formatting = {}) {
   const workbook = XLSX.utils.book_new();
@@ -160,5 +161,5 @@ export function chunkRecords(records, chunkSize = 10) {
 export function saveJsonToFile(data, outputFile) {
   fs.writeFileSync(outputFile, JSON.stringify(data, null, 2), "utf8");
 
-  console.log(`JSON saved: ${outputFile}`);
+  logger.info(`JSON saved to file: [${outputFile}]`);
 }

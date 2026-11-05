@@ -3,6 +3,7 @@ import fs from "fs";
 import dayjs from "dayjs";
 
 import { ACTIVE_FTO_REPORT } from "../config/config.js";
+import { logger } from "../utils/logger.js";
 const targetBlockName = ACTIVE_FTO_REPORT.BLOCK_NAME;
 const targetFinancialYear = ACTIVE_FTO_REPORT.FINACIAL_YEAR;
 
@@ -302,8 +303,7 @@ async function mergeExcel() {
   //------------------------------------------
 
   await targetWorkbook.xlsx.writeFile(outputFile);
-
-  console.log(`Created: ${outputFile}`);
+  logger.info(`File created: [${outputFile}]`);
 }
 
 mergeExcel().catch(console.error);

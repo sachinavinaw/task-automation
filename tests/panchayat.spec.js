@@ -2,6 +2,7 @@ import { test } from "@playwright/test";
 import fs from "fs";
 
 import { ACTIVE_FTO_REPORT } from "../config/config.js";
+import { logger } from "../utils/logger.js";
 
 const targetBlockName = ACTIVE_FTO_REPORT.BLOCK_NAME;
 const targetFinancialYear = ACTIVE_FTO_REPORT.FINACIAL_YEAR;
@@ -27,11 +28,11 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
   for (let i = 0; i < records.length; i += CHUNK_SIZE) {
     const chunk = records.slice(i, i + CHUNK_SIZE);
 
-    console.log(`Processing records ${i + 1} to ${i + chunk.length}`);
+    logger.debug(`Processing records ${i + 1} to ${i + chunk.length}`);
 
     for (const record of chunk) {
       try {
-        console.log(`Opening: ${record.ftoNo}`);
+        logger.debug(`Opening: ${record.ftoNo}`);
 
         const urlMatch = String(record.hyperlink).match(
           /https:\/\/mnregaweb2\.dord\.gov\.in\/netnrega\/FTO\/[^"<>\s]+/,
@@ -43,24 +44,16 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
           throw new Error(`Could not extract URL for ${record.ftoNo}`);
         }
 
-        console.log("Opening URL:", url);
-
         await page.goto(url, {
           waitUntil: "domcontentloaded",
           timeout: 120000,
         });
-
-        const title = await page.title();
-        console.log("Title:", title);
-
-        console.log("Tables:", await page.locator("table").count());
 
         await page.waitForLoadState("networkidle");
 
         const data = await page.evaluate(() => {
           const tables = document.querySelectorAll("table");
 
-          // const targetTable = tables[3];
           const targetTable = [...tables].find((table) =>
             table.innerText.includes("Job Card No."),
           );
@@ -81,16 +74,6 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
           // Find Job Card column
           for (let i = 0; i < rows.length; i++) {
             const cells = [...rows[i].querySelectorAll("th, td")];
-
-            // const idx = cells.findIndex((cell) =>
-            //   cell.innerText.trim().includes("Job Card No."),
-            // );
-
-            // if (idx >= 0) {
-            //   jobCardColumnIndex = idx;
-            //   headerRowIndex = i;
-            //   break;
-            // }
 
             cells.forEach((cell, idx) => {
               const text = cell.innerText.trim();
@@ -176,12 +159,9 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
           };
         });
 
-        console.log(data);
-
         if (data.allPanchayats.length > 1) {
-          console.warn(
-            `${record.ftoNo} has multiple Panchayats`,
-            data.allPanchayats,
+          logger.warn(
+            `${record.ftoNo} has multiple Panchayats : ${data.allPanchayats}`,
           );
         }
 
@@ -191,7 +171,7 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
           blockName: data.allBlocks[0] || "",
         });
       } catch (error) {
-        console.error(`Failed: ${record.ftoNo}`, error.message);
+        logger.error(error, `Failed: ${record.ftoNo}`);
 
         results.push({
           ...record,
@@ -204,8 +184,8 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
     // Save progress after each chunk
     fs.writeFileSync(outputFile, JSON.stringify(results, null, 2), "utf8");
 
-    console.log(`Saved progress: ${results.length}/${records.length}`);
+    logger.debug(`Saved progress: ${results.length}/${records.length}`);
   }
 
-  console.log(`Completed. Output: ${outputFile}`);
+  logger.info(`Records fetched and exported to file: [${outputFile}]`);
 });

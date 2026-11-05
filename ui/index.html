@@ -297,6 +297,112 @@
         border: 1px solid rgba(255, 255, 255, 0.05);
       }
 
+      /* Full Page Overlay Loader */
+      .overlay-loader {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.3s ease,
+          visibility 0.3s ease;
+      }
+
+      .overlay-loader.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .spinner-container {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .spinner-ring {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        border: 4px solid transparent;
+        border-top-color: #3b82f6;
+        border-right-color: #10b981;
+        animation: spin 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+      }
+
+      .spinner-ring-inner {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-bottom-color: #6366f1;
+        animation: spin-reverse 0.9s linear infinite;
+      }
+
+      .loader-icon {
+        position: absolute;
+        color: var(--text-heading);
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+
+      .loader-text {
+        margin-top: 24px;
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--text-heading);
+        letter-spacing: 0.02em;
+      }
+
+      .loader-subtext {
+        margin-top: 6px;
+        font-size: 0.8rem;
+        color: var(--text-body);
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes spin-reverse {
+        0% {
+          transform: rotate(360deg);
+        }
+        100% {
+          transform: rotate(0deg);
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(0.95);
+          opacity: 0.8;
+        }
+        50% {
+          transform: scale(1.1);
+          opacity: 1;
+        }
+      }
+
       .footer-text {
         text-align: center;
         color: var(--text-body);
@@ -339,15 +445,15 @@
               </svg>
             </div>
           </div>
-          <div class="title">Panchayat Automation</div>
+          <div class="title">Work Automation</div>
           <div class="subtitle">
-            Select Panchayat and Financial Year to begin automated task runner
+            Select Blockname and Financial Year to begin automated task runner
           </div>
         </div>
 
         <form id="automationForm" novalidate>
           <div class="form-group">
-            <label for="panchayat" class="form-label">
+            <label for="blockName" class="form-label">
               <svg
                 width="15"
                 height="15"
@@ -360,11 +466,11 @@
                   d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"
                 />
               </svg>
-              Panchayat
+              Blockname
             </label>
             <div class="form-control-wrapper">
-              <select id="panchayat" class="form-select" required>
-                <option value="">Select Panchayat</option>
+              <select id="blockName" class="form-select" required>
+                <option value="">Select Blockname</option>
               </select>
               <svg
                 class="validation-icon validation-icon-valid"
@@ -470,13 +576,41 @@
       </div>
     </div>
 
+    <!-- Full-Page Overlay Loader -->
+    <div id="overlayLoader" class="overlay-loader">
+      <div class="spinner-container">
+        <div class="spinner-ring"></div>
+        <div class="spinner-ring-inner"></div>
+        <div class="loader-icon">
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+            />
+          </svg>
+        </div>
+      </div>
+      <div class="loader-text">Running Automation...</div>
+      <div class="loader-subtext">Please wait while tasks are executing</div>
+    </div>
+
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("automationForm");
-        const panchayatSelect = document.getElementById("panchayat");
+        const blockNameSelect = document.getElementById("blockName");
         const fySelect = document.getElementById("financialYear");
         const resetBtn = document.getElementById("resetBtn");
         const statusDiv = document.getElementById("status");
+        const overlayLoader = document.getElementById("overlayLoader");
+
+        const showLoader = () => overlayLoader.classList.add("active");
+        const hideLoader = () => overlayLoader.classList.remove("active");
 
         const validateField = (field) => {
           if (field.value !== "") {
@@ -492,7 +626,7 @@
         };
 
         const checkGlobalValidity = () => {
-          if (panchayatSelect.value !== "" && fySelect.value !== "") {
+          if (blockNameSelect.value !== "" && fySelect.value !== "") {
             if (
               statusDiv.textContent === "Please fill out all required fields."
             ) {
@@ -501,26 +635,53 @@
           }
         };
 
-        [panchayatSelect, fySelect].forEach((select) => {
+        [blockNameSelect, fySelect].forEach((select) => {
           select.addEventListener("change", () => validateField(select));
         });
 
         resetBtn.addEventListener("click", () => {
           form.reset();
-          [panchayatSelect, fySelect].forEach((select) => {
+          [blockNameSelect, fySelect].forEach((select) => {
             select.classList.remove("is-valid", "is-invalid");
           });
           statusDiv.textContent = "";
+          hideLoader();
         });
 
-        form.addEventListener("submit", (e) => {
+        form.addEventListener("submit", async (e) => {
           e.preventDefault();
-          const isPanchayatValid = validateField(panchayatSelect);
+          const isBlockValid = validateField(blockNameSelect);
           const isFyValid = validateField(fySelect);
 
-          if (isPanchayatValid && isFyValid) {
+          if (isBlockValid && isFyValid) {
             statusDiv.className = "text-success font-weight-bold";
             statusDiv.textContent = "Processing automation...";
+            showLoader();
+
+            try {
+              // 1. Save configuration first if required
+              await window.electronAPI.saveSelectionConfig({
+                blockName: blockNameSelect.value,
+                financialYear: fySelect.value,
+              });
+
+              // 2. Trigger the batch process runner via IPC
+              const result = await window.electronAPI.runProcess();
+
+              if (result.success) {
+                statusDiv.textContent = result.message;
+              } else {
+                statusDiv.className = "text-danger";
+                statusDiv.textContent = result.message;
+              }
+            } catch (error) {
+              statusDiv.className = "text-danger";
+              statusDiv.textContent = "Error executing automation process.";
+              console.error(error);
+            } finally {
+              // 3. Always hide the loader when finished (success or failure)
+              hideLoader();
+            }
           } else {
             statusDiv.className = "text-danger";
             statusDiv.textContent = "Please fill out all required fields.";

@@ -5,7 +5,6 @@ import fs from "fs";
 import XLSX from "xlsx-js-style";
 
 import { ACTIVE_FTO_REPORT } from "../config/config.js";
-import { logger } from "../utils/logger.js";
 
 const targetBlockName = ACTIVE_FTO_REPORT.BLOCK_NAME;
 const targetFinancialYear = ACTIVE_FTO_REPORT.FINACIAL_YEAR;
@@ -73,7 +72,6 @@ test("Download FTO Report for block", async ({ page }) => {
 
   // Wait for next page
   await page.waitForLoadState("domcontentloaded");
-  s;
 
   const ftoStatusReportLink = page.locator("a").filter({
     hasText: "FTO Status Report",
@@ -100,7 +98,7 @@ test("Download FTO Report for block", async ({ page }) => {
   await expect(secondSignatorySignedFtoLink).toBeVisible();
 
   const count = await secondSignatorySignedFtoLink.textContent();
-  logger.info(`2nd Signatory Signed FTO Count:${count}`);
+  console.log(`2nd Signatory Signed FTO Count:${count}`);
 
   await secondSignatorySignedFtoLink.click();
 
@@ -242,7 +240,7 @@ test("Download FTO Report for block", async ({ page }) => {
   // Save file
   XLSX.writeFile(workbook, fileName);
 
-  logger.info(`Saved block data oin file: [${fileName}]`);
+  console.log(`Saved block data oin file: [${fileName}]`);
 
   await page.pause();
 });

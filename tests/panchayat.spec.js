@@ -2,7 +2,6 @@ import { test } from "@playwright/test";
 import fs from "fs";
 
 import { ACTIVE_FTO_REPORT } from "../config/config.js";
-import { logger } from "../utils/logger.js";
 
 const targetBlockName = ACTIVE_FTO_REPORT.BLOCK_NAME;
 const targetFinancialYear = ACTIVE_FTO_REPORT.FINACIAL_YEAR;
@@ -28,11 +27,11 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
   for (let i = 0; i < records.length; i += CHUNK_SIZE) {
     const chunk = records.slice(i, i + CHUNK_SIZE);
 
-    logger.debug(`Processing records ${i + 1} to ${i + chunk.length}`);
+    console.log(`Processing records ${i + 1} to ${i + chunk.length}`);
 
     for (const record of chunk) {
       try {
-        logger.debug(`Opening: ${record.ftoNo}`);
+        console.log(`Opening: ${record.ftoNo}`);
 
         const urlMatch = String(record.hyperlink).match(
           /https:\/\/mnregaweb2\.dord\.gov\.in\/netnrega\/FTO\/[^"<>\s]+/,
@@ -160,7 +159,7 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
         });
 
         if (data.allPanchayats.length > 1) {
-          logger.warn(
+          console.log(
             `${record.ftoNo} has multiple Panchayats : ${data.allPanchayats}`,
           );
         }
@@ -171,7 +170,7 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
           blockName: data.allBlocks[0] || "",
         });
       } catch (error) {
-        logger.error(error, `Failed: ${record.ftoNo}`);
+        console.error(`Failed: ${record.ftoNo}`, error);
 
         results.push({
           ...record,
@@ -184,8 +183,8 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
     // Save progress after each chunk
     fs.writeFileSync(outputFile, JSON.stringify(results, null, 2), "utf8");
 
-    logger.debug(`Saved progress: ${results.length}/${records.length}`);
+    console.log(`Saved progress: ${results.length}/${records.length}`);
   }
 
-  logger.info(`Records fetched and exported to file: [${outputFile}]`);
+  console.log(`Records fetched and exported to file: [${outputFile}]`);
 });

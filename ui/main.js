@@ -15,7 +15,21 @@ logger.info("Application started");
 const PATHS = {
   PRELOAD: path.join(APPPATH, "preload.js"),
   UICONFIG: path.join(APPPATH, "config", "ui-data.json"),
-  RUNNERBAT: path.resolve(APPPATH, "..", "runner.bat"),
+  WAGERUNNERBAT: path.resolve(APPPATH, "..", "batch", "wage", "runner.bat"),
+  MATERIALRUNNERBAT: path.resolve(
+    APPPATH,
+    "..",
+    "batch",
+    "material",
+    "runner.bat",
+  ),
+  SEMISKILLEDRUNNERBAT: path.resolve(
+    APPPATH,
+    "..",
+    "batch",
+    "semiskilled",
+    "runner.bat",
+  ),
 };
 
 async function readEnv() {
@@ -56,10 +70,10 @@ function createWindow() {
   });
 
   Menu.setApplicationMenu(null);
-
-  if (process.env.IS_DEV || !app.isPackaged) {
-    mainWindow.webContents.openDevTools();
-  }
+  //process.env.IS_DEV ||
+  // if (!app.isPackaged) {
+  //   mainWindow.webContents.openDevTools();
+  // }
 
   mainWindow.loadFile("index.html");
 
@@ -125,6 +139,11 @@ ipcMain.handle("get-current-selection", async () => {
   return {
     blockName: env.BLOCK_NAME || "",
     financialYear: env.FINANCIAL_YEAR || "",
+    taskTypes: env.TASK_TYPES
+      ? env.TASK_TYPES.split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [],
   };
 });
 
@@ -146,7 +165,9 @@ ipcMain.handle("save-selection-config", async (_event, data) => {
 
     env.BLOCK_NAME = data.blockName;
     env.FINANCIAL_YEAR = data.financialYear;
-
+    env.TASK_TYPES = Array.isArray(data.taskTypes)
+      ? data.taskTypes.join(",")
+      : "";
     await writeEnv(env);
 
     return {
@@ -158,50 +179,132 @@ ipcMain.handle("save-selection-config", async (_event, data) => {
   }
 });
 
-// Execute batch file
+// Execute batch files strictly in sequence: WAGE -> MATERIAL -> SEMISKILLED
 ipcMain.handle("run-process", async () => {
-  return new Promise((resolve, reject) => {
+  const env = await readEnv();
+
+  // Parse TASK_TYPES from env
+  const selectedTasks = env.TASK_TYPES
+    ? env.TASK_TYPES.split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
+
+  if (selectedTasks.length === 0) {
+    return {
+      success: false,
+      message: "No task types selected to run.",
+    };
+  }
+
+  // Define the strict fixed order array
+  const fixedOrderTasks = [
+    { key: "WAGE_LIST", name: "Wage", path: PATHS.WAGERUNNERBAT },
+    { key: "MATERIAL_LIST", name: "Material", path: PATHS.MATERIALRUNNERBAT },
+    {
+      key: "SEMI_SKILLED_LIST",
+      name: "Semi-Skilled",
+      path: PATHS.SEMISKILLEDRUNNERBAT,
+    },
+  ];
+
+  // Filter only the tasks that were selected by the user,
+  // but keep them strictly in the predefined sequence order.
+  const tasksToRun = fixedOrderTasks.filter((task) =>
+    selectedTasks.includes(task.key),
+  );
+
+  let combinedStdout = "";
+  let combinedStderr = "";
+
+  // Run each batch file sequentially in order
+  for (const task of tasksToRun) {
+    logger.info(`Starting task runner: ${task.name} (${task.path})`);
+
+    const result = await runSingleBatch(task.path);
+    combinedStdout += `\n--- [${task.name} Start] ---\n` + result.stdout;
+    combinedStderr += `\n--- [${task.name} Error] ---\n` + result.stderr;
+
+    // Terminate immediately if any task fails
+    if (!result.success) {
+      logger.error(
+        `Task failed: ${task.name} with exit code ${result.exitCode}. Stopping execution sequence.`,
+      );
+      return {
+        success: false,
+        exitCode: result.exitCode,
+        message: `Task '${task.name}' failed with exit code ${result.exitCode}. Execution stopped.`,
+        stdout: combinedStdout,
+        stderr: combinedStderr,
+      };
+    }
+  }
+
+  return {
+    success: true,
+    exitCode: 0,
+    message:
+      "All selected automation tasks completed successfully in sequence.",
+    stdout: combinedStdout,
+    stderr: combinedStderr,
+  };
+});
+
+/**
+ * Helper function to execute a single batch file via child_process.spawn
+ */
+function runSingleBatch(batchPath) {
+  return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
 
-    activeChildProcess = spawn("cmd.exe", ["/c", PATHS.RUNNERBAT], {
+    activeChildProcess = spawn("cmd.exe", ["/c", batchPath], {
       cwd: APPBASEPATH,
       shell: true,
+      env: {
+        ...process.env,
+        npm_config_loglevel: "warn", // Hides 'npm notice' lines, only shows warnings/errors
+        npm_config_fund: "false",
+      },
     });
 
     activeChildProcess.stdout.on("data", (data) => {
       const text = data.toString();
       stdout += text;
-      logger.debug(text);
+      logger.debug(text.trim());
     });
 
     activeChildProcess.stderr.on("data", (data) => {
       const text = data.toString();
       stderr += text;
-      logger.error(text);
+
+      // Filter out harmless npm notices so they don't trigger error logs
+      if (text.includes("npm notice")) {
+        logger.debug(text.trim());
+      } else {
+        logger.error(text.trim());
+      }
     });
 
     activeChildProcess.on("error", (error) => {
-      logger.error(error, "Process start failed");
+      logger.error(error, `Process start failed for ${batchPath}`);
       activeChildProcess = null;
-      reject({
+      resolve({
         success: false,
-        message: error.message,
+        exitCode: -1,
+        stdout,
+        stderr: stderr + "\n" + error.message,
       });
     });
 
     activeChildProcess.on("close", (code) => {
-      activeChildProcess = null; // Clear reference when complete
+      activeChildProcess = null;
       resolve({
         success: code === 0,
         exitCode: code,
-        message:
-          code === 0
-            ? "Task completed successfully."
-            : `Task failed with exit code ${code}.`,
         stdout,
         stderr,
       });
     });
   });
-});
+}

@@ -1,12 +1,12 @@
 import { test } from "@playwright/test";
 import fs from "fs";
 
-import { ACTIVE_FTO_REPORT } from "../config/config.js";
-
+import { ACTIVE_FTO_REPORT } from "../../config/config.js";
+import { logger } from "../../utils/logger.js";
 const targetBlockName = ACTIVE_FTO_REPORT.BLOCK_NAME;
 const targetFinancialYear = ACTIVE_FTO_REPORT.FINACIAL_YEAR;
 
-test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
+test.only("[WAGE] Fetch Panchayat Name from FTO links", async ({ page }) => {
   test.setTimeout(60 * 60 * 1000);
 
   const jsonDir = `${process.cwd()}/data/block/${targetBlockName}/${targetFinancialYear}/json`;
@@ -14,9 +14,9 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
     recursive: true,
   });
 
-  const jsonFile = `${jsonDir}/FTO_Report.json`;
+  const jsonFile = `${jsonDir}/WageList_FTO_Report.json`;
 
-  const outputFile = `${jsonDir}/FTO_Report_With_Panchayat.json`;
+  const outputFile = `${jsonDir}/WageList_FTO_Report_With_Panchayat.json`;
 
   const records = JSON.parse(fs.readFileSync(jsonFile, "utf8"));
 
@@ -27,11 +27,13 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
   for (let i = 0; i < records.length; i += CHUNK_SIZE) {
     const chunk = records.slice(i, i + CHUNK_SIZE);
 
-    console.log(`Processing records ${i + 1} to ${i + chunk.length}`);
+    logger.debug(`Processing records ${i + 1} to ${i + chunk.length}`);
 
     for (const record of chunk) {
       try {
-        console.log(`Opening: ${record.ftoNo}`);
+        logger.debug(
+          `Opening link for FTO No. [${record.ftoNo}]: ${record.hyperlink}`,
+        );
 
         const urlMatch = String(record.hyperlink).match(
           /https:\/\/mnregaweb2\.dord\.gov\.in\/netnrega\/FTO\/[^"<>\s]+/,
@@ -159,8 +161,8 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
         });
 
         if (data.allPanchayats.length > 1) {
-          console.log(
-            `${record.ftoNo} has multiple Panchayats : ${data.allPanchayats}`,
+          logger.warn(
+            `FTO No. [${record.ftoNo}] has multiple Panchayats : [${data.allPanchayats.join(", ")}]`,
           );
         }
 
@@ -170,7 +172,7 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
           blockName: data.allBlocks[0] || "",
         });
       } catch (error) {
-        console.error(`Failed: ${record.ftoNo}`, error);
+        logger.error(`Failed: ${record.ftoNo}`, error);
 
         results.push({
           ...record,
@@ -183,8 +185,8 @@ test.only("Fetch Panchayat Name from FTO links", async ({ page }) => {
     // Save progress after each chunk
     fs.writeFileSync(outputFile, JSON.stringify(results, null, 2), "utf8");
 
-    console.log(`Saved progress: ${results.length}/${records.length}`);
+    logger.info(`Saved progress: ${results.length}/${records.length}`);
   }
 
-  console.log(`Records fetched and exported to file: [${outputFile}]`);
+  logger.info(`Records fetched and exported to file: [${outputFile}]`);
 });

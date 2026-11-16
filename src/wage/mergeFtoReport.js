@@ -2,14 +2,14 @@ import ExcelJS from "exceljs";
 import fs from "fs";
 import dayjs from "dayjs";
 
-import { ACTIVE_FTO_REPORT } from "../config/config.js";
-import { logger } from "../utils/logger.js";
+import { ACTIVE_FTO_REPORT, DATA_OUTPUT_DIR } from "../../config/config.js";
+import { logger } from "../../utils/logger.js";
 const targetBlockName = ACTIVE_FTO_REPORT.BLOCK_NAME;
 const targetFinancialYear = ACTIVE_FTO_REPORT.FINACIAL_YEAR;
 
-const EXCEL_FILE = `${process.cwd()}/data/block/${targetBlockName}/${targetFinancialYear}/excel/FTO_Report.xlsx`;
+const EXCEL_FILE = `${DATA_OUTPUT_DIR}/${targetBlockName}/${targetFinancialYear}/excel/WageList_FTO_Report.xlsx`;
 
-const JSON_FILE = `${process.cwd()}/data/block/${targetBlockName}/${targetFinancialYear}/json/FTO_Report_With_Panchayat.json`;
+const JSON_FILE = `${DATA_OUTPUT_DIR}/${targetBlockName}/${targetFinancialYear}/json/WageList_FTO_Report_With_Panchayat.json`;
 
 const config = {
   // Row 1 = Header
@@ -79,13 +79,13 @@ function shouldSkipRow(rowNumber) {
 async function mergeExcel() {
   const timestamp = dayjs().format("YYYYMMDD");
 
-  const outputDir = `${process.cwd()}/data/block/${targetBlockName}/${targetFinancialYear}/finalFTO`;
+  const outputDir = `${DATA_OUTPUT_DIR}/${targetBlockName}/${targetFinancialYear}/finalFTO`;
 
   fs.mkdirSync(outputDir, {
     recursive: true,
   });
 
-  const outputFile = `${outputDir}/${timestamp}_FTO_Report_With_Panchayat.xlsx`;
+  const outputFile = `${outputDir}/${timestamp}_WageList_FTO_Report_With_Panchayat.xlsx`;
 
   const jsonData = JSON.parse(fs.readFileSync(JSON_FILE, "utf8"));
 

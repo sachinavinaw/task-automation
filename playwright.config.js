@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 
 dotenv.config({
   path: path.resolve(process.cwd(), ".env.dev"),
+  quiet: true, // Suppress warnings if the file is missing
 });
 
 /**

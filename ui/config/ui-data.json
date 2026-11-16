@@ -25,5 +25,19 @@
     "2024-2025",
     "2023-2024",
     "2022-2023"
+  ],
+  "taskTypes": [
+    {
+      "key": "WAGE_LIST",
+      "value": "Wage"
+    },
+    {
+      "key": "MATERIAL_LIST",
+      "value": "Material"
+    },
+    {
+      "key": "SEMI_SKILLED_LIST",
+      "value": "Semi-skilled Labor"
+    }
   ]
 }

@@ -2,11 +2,10 @@ import pino from "pino";
 import fs from "fs";
 import path from "path";
 import dayjs from "dayjs";
+import { LOG_OUTPUT_DIR } from "../config/config.js";
 
-const logDir = path.join(process.cwd(), "logs");
-
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true });
+if (!fs.existsSync(LOG_OUTPUT_DIR)) {
+  fs.mkdirSync(LOG_OUTPUT_DIR, { recursive: true });
 }
 
 const date = dayjs().format("YYYYMMDD");
@@ -29,7 +28,7 @@ export const logger = pino({
         target: "pino/file",
         level: "debug",
         options: {
-          destination: path.join(logDir, `application-${date}.log`),
+          destination: path.join(LOG_OUTPUT_DIR, `application-${date}.log`),
           mkdir: true,
         },
       },

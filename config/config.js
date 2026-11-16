@@ -1,5 +1,6 @@
 import path from "path";
 import dotenv from "dotenv";
+import { fileURLToPath } from "url";
 
 dotenv.config({
   path: path.resolve(process.cwd(), ".env.dev"),
@@ -45,3 +46,10 @@ export const ACTIVE_FTO_REPORT = {
   BLOCK_NAME: blockName,
   FINACIAL_YEAR: financialYear,
 };
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// This will reliably resolve to task-automation/data
+export const DATA_OUTPUT_DIR = path.resolve(__dirname, "../data/block");
+export const LOG_OUTPUT_DIR = path.resolve(__dirname, "../logs");

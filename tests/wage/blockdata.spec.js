@@ -1,17 +1,18 @@
 import { test, expect } from "@playwright/test";
-import dayjs from "dayjs";
 import fs from "fs";
-// import XLSX from "xlsx";
 import XLSX from "xlsx-js-style";
 
-import { ACTIVE_FTO_REPORT } from "../config/config.js";
+import { ACTIVE_FTO_REPORT } from "../../config/config.js";
+import { logger } from "../../utils/logger.js";
 
 const targetBlockName = ACTIVE_FTO_REPORT.BLOCK_NAME;
 const targetFinancialYear = ACTIVE_FTO_REPORT.FINACIAL_YEAR;
 
-test("Download FTO Report for block", async ({ page }) => {
+test("[WAGE] Download FTO Report for block", async ({ page }) => {
   test.setTimeout(180000); // 3 minutes
-
+  logger.info(
+    `Executing test for block: [${targetBlockName}] and financial year: [${targetFinancialYear}]`,
+  );
   // Open Bihar state page
   await page.goto(
     "https://mnregaweb2.dord.gov.in/netnrega/homestciti.aspx?state_code=05&state_name=BIHAR&lflag=eng&labels=labels",
@@ -98,7 +99,7 @@ test("Download FTO Report for block", async ({ page }) => {
   await expect(secondSignatorySignedFtoLink).toBeVisible();
 
   const count = await secondSignatorySignedFtoLink.textContent();
-  console.log(`2nd Signatory Signed FTO Count:${count}`);
+  logger.debug(`2nd Signatory Signed FTO Count:${count}`);
 
   await secondSignatorySignedFtoLink.click();
 
@@ -107,7 +108,7 @@ test("Download FTO Report for block", async ({ page }) => {
   });
 
   const downloadsDir = `${process.cwd()}\\data\\block\\${targetBlockName}\\${targetFinancialYear}\\excel`;
-  const fileName = `${downloadsDir}/FTO_Report.xlsx`;
+  const fileName = `${downloadsDir}/WageList_FTO_Report.xlsx`;
 
   fs.mkdirSync(downloadsDir, { recursive: true });
 
@@ -240,7 +241,6 @@ test("Download FTO Report for block", async ({ page }) => {
   // Save file
   XLSX.writeFile(workbook, fileName);
 
-  console.log(`Saved block data oin file: [${fileName}]`);
-
+  logger.info(`Saved block data oin file: [${fileName}]`);
   await page.pause();
 });

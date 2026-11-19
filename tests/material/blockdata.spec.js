@@ -88,27 +88,178 @@ test("[MATERIAL] Download FTO Report for block", async ({ page }) => {
   // Click on material radio button
   await page.locator('input[type="radio"][value="M"]').check();
 
+  // Wait for the FTO table
+  await expect(page.locator("text=FTO Generated at Block Level")).toBeVisible({
+    timeout: 120000,
+  });
+
   // Find row containing blockName
   const blockNameRow = page.locator("tr").filter({
     hasText: targetBlockName,
   });
 
-  // 2nd Signatory -> No. of Signed FTO link
-  const secondSignatorySignedFtoLink = blockNameRow
-    .locator("td")
-    .nth(5)
-    .locator("a");
+  // 2nd Signatory cell reference (Row -> 5th cell/td index)
+  const secondSignatoryCell = blockNameRow.locator("td").nth(5);
 
-  await expect(secondSignatorySignedFtoLink).toBeVisible();
+  // Check if an anchor tag exists specifically inside this cell
+  const secondSignatorySignedFtoLink = secondSignatoryCell.locator("a");
+  const linkCount = await secondSignatorySignedFtoLink.count();
 
-  const count = await secondSignatorySignedFtoLink.textContent();
-  logger.debug(`2nd Signatory Signed FTO Count:${count}`);
+  logger.debug(`Found ${linkCount} anchor tag(s) in the 2nd Signatory cell.`);
 
-  await secondSignatorySignedFtoLink.click();
+  if (linkCount === 0) {
+    logger.info(
+      `No link available for 2nd Signatory Signed FTO. Exiting the test case gracefully.`,
+    );
+    return; // Exit the test case gracefully if no link exists
+  }
+
+  // If the link exists, grab the first one safely
+  const targetLink = secondSignatorySignedFtoLink.first();
+  const count = await targetLink.textContent();
+  logger.debug(`2nd Signatory Signed FTO Count: ${count?.trim()}`);
+
+  await targetLink.click();
 
   await expect(page.locator("text=FTO Second Signatory")).toBeVisible({
     timeout: 120000,
   });
+
+  const downloadsDir = `${process.cwd()}\\data\\block\\${targetBlockName}\\${targetFinancialYear}\\excel`;
+  const fileName = `${downloadsDir}/MaterialList_FTO_Report.xlsx`;
+
+  fs.mkdirSync(downloadsDir, { recursive: true });
+
+  // Find the actual report table
+  const reportTable = page
+    .locator('table[style*="border-collapse: collapse"]')
+    .last();
+
+  const tableData = await reportTable.evaluate((table) => {
+    return [...table.querySelectorAll("tr")].map((tr) =>
+      [...tr.querySelectorAll("td, th")].map((cell) => {
+        const link = cell.querySelector("a");
+
+        return {
+          text: cell.innerText.trim(),
+          href: link ? link.href : null,
+        };
+      }),
+    );
+  });
+
+  const workbook = XLSX.utils.book_new();
+  const worksheet = {};
+
+  const rowCount = tableData.length;
+  const colCount = Math.max(...tableData.map((r) => r.length));
+
+  // Populate worksheet
+  for (let r = 0; r < rowCount; r++) {
+    for (let c = 0; c < tableData[r].length; c++) {
+      const cellData = tableData[r][c];
+
+      const cellRef = XLSX.utils.encode_cell({
+        r,
+        c,
+      });
+
+      worksheet[cellRef] = {
+        t: "s",
+        v: cellData.text,
+      };
+
+      // Preserve hyperlinks
+      if (cellData.href) {
+        worksheet[cellRef].l = {
+          Target: cellData.href,
+        };
+      }
+    }
+  }
+
+  // Worksheet range
+  worksheet["!ref"] = XLSX.utils.encode_range({
+    s: {
+      r: 0,
+      c: 0,
+    },
+    e: {
+      r: rowCount - 1,
+      c: colCount - 1,
+    },
+  });
+
+  // Auto width
+  worksheet["!cols"] = Array.from({ length: colCount }, (_, colIndex) => {
+    const maxLen = Math.max(
+      ...tableData.map((row) => row[colIndex]?.text?.length || 0),
+      10,
+    );
+
+    return {
+      wch: Math.min(maxLen + 3, 60),
+    };
+  });
+
+  // Style cells
+  for (let r = 0; r < rowCount; r++) {
+    for (let c = 0; c < colCount; c++) {
+      const ref = XLSX.utils.encode_cell({
+        r,
+        c,
+      });
+
+      if (!worksheet[ref]) continue;
+
+      const hasLink = !!worksheet[ref].l;
+
+      worksheet[ref].s = {
+        font: {
+          bold: r <= 1,
+          color: hasLink ? { rgb: "0563C1" } : { rgb: "000000" },
+          underline: hasLink,
+        },
+
+        fill:
+          r <= 1
+            ? {
+                patternType: "solid",
+                fgColor: {
+                  rgb: "82B4FF",
+                },
+              }
+            : undefined,
+
+        alignment: {
+          horizontal: "center",
+          vertical: "center",
+          wrapText: true,
+        },
+
+        border: {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        },
+      };
+    }
+  }
+
+  // Freeze top two rows
+  worksheet["!freeze"] = {
+    xSplit: 0,
+    ySplit: 2,
+  };
+
+  // Add worksheet
+  XLSX.utils.book_append_sheet(workbook, worksheet, "FTO Report");
+
+  // Save file
+  XLSX.writeFile(workbook, fileName);
+
+  logger.info(`Saved block data in file: [${fileName}]`);
 
   // await page.pause();
 });
